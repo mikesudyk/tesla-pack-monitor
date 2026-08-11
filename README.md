@@ -56,9 +56,12 @@ python -m tesla_bms
 # or after install:
 tpm
 tpm --demo
+tpm --json
+tpm --weak 10
 
 # Decode a candump-style capture
 tpm --log capture.log
+tpm --log capture.log --json
 
 # Live SocketCAN (Linux; needs a real/virtual CAN interface)
 tpm --can can0
@@ -95,6 +98,7 @@ Requires Linux SocketCAN (`can0`, `vcan0`, …). On macOS without CAN hardware t
 - [x] 0x6F2 brick voltage + temperature decoder
 - [x] CLI demo mode + candump `--log` support
 - [x] SocketCAN live listener (`--can`)
+- [x] JSON output (`--json`) and `--weak N`
 - [ ] Display + button UI
 - [ ] Report generation
 - [ ] SoftAP web dashboard

@@ -7,20 +7,23 @@ Usage:
     python -m tesla_bms --demo         # same as above
     python -m tesla_bms --log capture.log
     python -m tesla_bms --can can0
+    python -m tesla_bms --json
+    python -m tesla_bms --weak 10
     python -m tesla_bms --help
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from .candump import load_6F2_frames_from_log
 from .decoder import update_from_6F2_frames
 from .live import CanInterfaceError, collect_pack_state
-from .models import PackState
+from .models import NUM_BRICKS, PackState
 
 
 def _make_sample_frames() -> List[bytes]:
@@ -78,7 +81,44 @@ def _make_sample_frames() -> List[bytes]:
     return frames
 
 
-def print_summary(state: PackState) -> None:
+def summary_dict(state: PackState, weak: int = 5) -> Dict[str, Any]:
+    """Build a JSON-serializable pack summary from PackState helpers."""
+    weakest = [
+        {
+            "index": b.index,
+            "module": b.module,
+            "voltage": b.voltage,
+        }
+        for b in state.weakest_bricks(weak)
+    ]
+
+    modules = []
+    for mod in state.modules():
+        modules.append(
+            {
+                "index": mod.index,
+                "avg_voltage": mod.avg_voltage(),
+                "min_voltage": mod.min_voltage(),
+                "max_voltage": mod.max_voltage(),
+                "imbalance_mV": mod.imbalance_mV(),
+                "temperatures": list(mod.temperatures),
+            }
+        )
+
+    return {
+        "avg_voltage": state.avg_brick_voltage(),
+        "min_voltage": state.min_brick_voltage(),
+        "max_voltage": state.max_brick_voltage(),
+        "imbalance_mV": state.imbalance_mV(),
+        "pack_voltage": state.pack_voltage,
+        "valid_bricks": len(state.valid_voltages()),
+        "total_bricks": NUM_BRICKS,
+        "weakest_bricks": weakest,
+        "modules": modules,
+    }
+
+
+def print_summary(state: PackState, weak: int = 5) -> None:
     """Pretty-print a full pack summary to stdout."""
     print()
     print("╔══════════════════════════════════════════════════╗")
@@ -91,7 +131,7 @@ def print_summary(state: PackState) -> None:
     print()
 
     # Weakest / strongest bricks
-    weakest = state.weakest_bricks(5)
+    weakest = state.weakest_bricks(weak)
     strongest = state.strongest_bricks(3)
 
     if weakest:
@@ -135,14 +175,35 @@ def print_summary(state: PackState) -> None:
     print()
 
 
-def main(argv: List[str] | None = None) -> int:
+def emit_summary(
+    state: PackState,
+    *,
+    as_json: bool = False,
+    weak: int = 5,
+) -> None:
+    """Emit either human-readable or JSON summary to stdout."""
+    if as_json:
+        print(json.dumps(summary_dict(state, weak=weak), indent=2))
+    else:
+        print_summary(state, weak=weak)
+
+
+def _status(message: str, *, as_json: bool) -> None:
+    """Progress/status lines: stderr when JSON so stdout stays pure."""
+    stream = sys.stderr if as_json else sys.stdout
+    print(message, file=stream)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="tesla-bms",
         description="Tesla Classic Model S/X Pack Monitor CLI",
         epilog=(
             "Examples:\n"
             "  tesla-bms --demo\n"
-            "  tesla-bms --log capture.log\n"
+            "  tesla-bms --json\n"
+            "  tesla-bms --weak 10\n"
+            "  tesla-bms --log capture.log --json\n"
             "  tesla-bms --can can0\n"
             "\n"
             "Log format (candump-style):\n"
@@ -172,6 +233,18 @@ def main(argv: List[str] | None = None) -> int:
         help="Listen live on SocketCAN INTERFACE at 500 kbit/s for 0x6F2",
     )
     parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print a JSON summary instead of the human-readable table",
+    )
+    parser.add_argument(
+        "--weak",
+        metavar="N",
+        type=int,
+        default=5,
+        help="Number of weakest bricks to include (default: 5)",
+    )
+    parser.add_argument(
         "--version",
         action="store_true",
         help="Show version and exit",
@@ -183,6 +256,13 @@ def main(argv: List[str] | None = None) -> int:
         from . import __version__
         print(f"tesla-bms {__version__}")
         return 0
+
+    if args.weak < 0:
+        print("error: --weak must be >= 0", file=sys.stderr)
+        return 2
+
+    as_json = args.json
+    weak = args.weak
 
     if args.log:
         try:
@@ -197,9 +277,12 @@ def main(argv: List[str] | None = None) -> int:
             print(f"error: could not read log file: {exc}", file=sys.stderr)
             return 1
 
-        print(f"Loaded {len(frames)} 0x6F2 frame(s) from {args.log}")
+        _status(
+            f"Loaded {len(frames)} 0x6F2 frame(s) from {args.log}",
+            as_json=as_json,
+        )
         state = update_from_6F2_frames(frames)
-        print_summary(state)
+        emit_summary(state, as_json=as_json, weak=weak)
         return 0
 
     if args.can:
@@ -209,18 +292,19 @@ def main(argv: List[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 1
 
-        print(
+        _status(
             f"Collected {count} 0x6F2 frame(s) "
-            f"covering {len(indexes)} index(es) from {args.can}"
+            f"covering {len(indexes)} index(es) from {args.can}",
+            as_json=as_json,
         )
-        print_summary(state)
+        emit_summary(state, as_json=as_json, weak=weak)
         return 0
 
     # Default / --demo: synthetic sample frames
-    print("Loading sample 0x6F2 frames (demo mode)...")
+    _status("Loading sample 0x6F2 frames (demo mode)...", as_json=as_json)
     frames = _make_sample_frames()
     state = update_from_6F2_frames(frames)
-    print_summary(state)
+    emit_summary(state, as_json=as_json, weak=weak)
 
     return 0
 

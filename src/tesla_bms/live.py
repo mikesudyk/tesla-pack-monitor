@@ -7,6 +7,7 @@ separate so a future continuous/live UI can reuse the same pieces.
 
 from __future__ import annotations
 
+import sys
 import time
 from typing import Optional, Set
 
@@ -122,7 +123,8 @@ def collect_pack_state(
     try:
         print(
             f"Listening on {channel} for 0x6F2 "
-            f"(timeout {timeout:.0f}s, Ctrl+C to stop early)..."
+            f"(timeout {timeout:.0f}s, Ctrl+C to stop early)...",
+            file=sys.stderr,
         )
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
@@ -153,7 +155,7 @@ def collect_pack_state(
             pass
 
     if interrupted:
-        print("Interrupted — using frames collected so far.")
+        print("Interrupted — using frames collected so far.", file=sys.stderr)
 
     if frame_count == 0:
         raise CanInterfaceError(
