@@ -5,6 +5,7 @@ Command-line interface for Tesla Pack Monitor.
 Usage:
     python -m tesla_bms                # run demo with sample data
     python -m tesla_bms --demo         # same as above
+    python -m tesla_bms --log capture.log
     python -m tesla_bms --help
 """
 
@@ -12,10 +13,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 from typing import List
 
-from .models import PackState, NUM_MODULES, BRICKS_PER_MODULE
-from .decoder import decode_0x6F2_frame, update_from_6F2_frames
+from .candump import load_6F2_frames_from_log
+from .decoder import update_from_6F2_frames
+from .models import PackState
 
 
 def _make_sample_frames() -> List[bytes]:
@@ -134,11 +137,22 @@ def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="tesla-bms",
         description="Tesla Classic Model S/X Pack Monitor CLI",
+        epilog=(
+            "Log format (candump-style):\n"
+            "  (123.456) can0 6F2#0011223344556677\n"
+            "  can0 6F2#0011223344556677"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--demo",
         action="store_true",
-        help="Run with built-in sample data (default if no other source given)",
+        help="Run with built-in sample data (default if no --log given)",
+    )
+    parser.add_argument(
+        "--log",
+        metavar="FILE",
+        help="Decode 0x6F2 frames from a candump-style log file",
     )
     parser.add_argument(
         "--version",
@@ -153,8 +167,25 @@ def main(argv: List[str] | None = None) -> int:
         print(f"tesla-bms {__version__}")
         return 0
 
-    # For now we only have the demo path.
-    # Later we will add --can, --log, etc.
+    if args.log:
+        try:
+            frames = load_6F2_frames_from_log(Path(args.log))
+        except FileNotFoundError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        except OSError as exc:
+            print(f"error: could not read log file: {exc}", file=sys.stderr)
+            return 1
+
+        print(f"Loaded {len(frames)} 0x6F2 frame(s) from {args.log}")
+        state = update_from_6F2_frames(frames)
+        print_summary(state)
+        return 0
+
+    # Default / --demo: synthetic sample frames
     print("Loading sample 0x6F2 frames (demo mode)...")
     frames = _make_sample_frames()
     state = update_from_6F2_frames(frames)

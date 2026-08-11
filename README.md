@@ -29,6 +29,8 @@ See `hardware/` for assembly notes and pinouts.
 src/tesla_bms/
 ├── models.py      # Brick, Module, PackState data model
 ├── decoder.py     # 0x6F2 and 0x102 CAN frame decoders
+├── candump.py     # candump-style log parser
+├── cli.py         # CLI (demo + --log)
 └── __init__.py
 
 tests/
@@ -45,16 +47,35 @@ source .venv/bin/activate          # Linux/macOS
 # .venv\Scripts\activate           # Windows
 
 pip install -r requirements.txt
+pip install -e .                   # optional editable install
+
+# Demo summary (synthetic 0x6F2 frames)
+python -m tesla_bms
+python -m tesla_bms --demo
+
+# Decode a candump-style capture
+python -m tesla_bms --log capture.log
 
 # Run basic self-test
 python -m tesla_bms.decoder
 ```
 
+### Candump log format
+
+Lines like:
+
+```text
+(123.456) can0 6F2#0011223344556677
+can0 6F2#0011223344556677
+```
+
+Only frames with ID `0x6F2` are used. Other IDs and blank/comment lines are ignored.
+
 ## Status
 
 - [x] Core data model
 - [x] 0x6F2 brick voltage + temperature decoder
-- [ ] Mock / simulator (optional)
+- [x] CLI demo mode + candump `--log` support
 - [ ] SocketCAN live listener
 - [ ] Display + button UI
 - [ ] Report generation
