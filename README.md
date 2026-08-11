@@ -40,24 +40,31 @@ docs/
 
 ## Quick Start (development)
 
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate          # Linux/macOS
-# .venv\Scripts\activate           # Windows
+The package lives under `src/`, so you need either an editable install or `PYTHONPATH=src`.
 
-pip install -r requirements.txt
-pip install -e .                   # optional editable install
+```bash
+cd ~/Developer/tesla-pack-monitor
+
+# One-time setup (recommended)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 
 # Demo summary (synthetic 0x6F2 frames)
 python -m tesla_bms
-python -m tesla_bms --demo
+# or after install:
+tpm
+tpm --demo
 
 # Decode a candump-style capture
-python -m tesla_bms --log capture.log
+tpm --log capture.log
+```
 
-# Run basic self-test
-python -m tesla_bms.decoder
+Without installing, you can still run:
+
+```bash
+PYTHONPATH=src python3 -m tesla_bms
+PYTHONPATH=src python3 -m tesla_bms --log capture.log
 ```
 
 ### Candump log format

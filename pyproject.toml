@@ -7,7 +7,7 @@ name = "tesla-bms"
 version = "0.1.0"
 description = "Classic Tesla Model S/X BMS data model and CAN decoder"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "python-can>=4.3.0",
 ]
@@ -16,6 +16,9 @@ dependencies = [
 dev = [
     "pytest>=7.0",
 ]
+
+[project.scripts]
+tpm = "tesla_bms.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
