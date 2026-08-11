@@ -6,6 +6,7 @@ Usage:
     python -m tesla_bms                # run demo with sample data
     python -m tesla_bms --demo         # same as above
     python -m tesla_bms --log capture.log
+    python -m tesla_bms --can can0
     python -m tesla_bms --help
 """
 
@@ -18,6 +19,7 @@ from typing import List
 
 from .candump import load_6F2_frames_from_log
 from .decoder import update_from_6F2_frames
+from .live import CanInterfaceError, collect_pack_state
 from .models import PackState
 
 
@@ -138,21 +140,36 @@ def main(argv: List[str] | None = None) -> int:
         prog="tesla-bms",
         description="Tesla Classic Model S/X Pack Monitor CLI",
         epilog=(
+            "Examples:\n"
+            "  tesla-bms --demo\n"
+            "  tesla-bms --log capture.log\n"
+            "  tesla-bms --can can0\n"
+            "\n"
             "Log format (candump-style):\n"
             "  (123.456) can0 6F2#0011223344556677\n"
-            "  can0 6F2#0011223344556677"
+            "  can0 6F2#0011223344556677\n"
+            "\n"
+            "Live CAN uses SocketCAN at 500 kbit/s and listens for 0x6F2.\n"
+            "Requires a Linux SocketCAN interface (not available on macOS\n"
+            "without extra hardware / virtual CAN setup)."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
         "--demo",
         action="store_true",
-        help="Run with built-in sample data (default if no --log given)",
+        help="Run with built-in sample data (default if no --log/--can)",
     )
-    parser.add_argument(
+    source.add_argument(
         "--log",
         metavar="FILE",
         help="Decode 0x6F2 frames from a candump-style log file",
+    )
+    source.add_argument(
+        "--can",
+        metavar="INTERFACE",
+        help="Listen live on SocketCAN INTERFACE at 500 kbit/s for 0x6F2",
     )
     parser.add_argument(
         "--version",
@@ -182,6 +199,20 @@ def main(argv: List[str] | None = None) -> int:
 
         print(f"Loaded {len(frames)} 0x6F2 frame(s) from {args.log}")
         state = update_from_6F2_frames(frames)
+        print_summary(state)
+        return 0
+
+    if args.can:
+        try:
+            state, count, indexes = collect_pack_state(args.can)
+        except CanInterfaceError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+        print(
+            f"Collected {count} 0x6F2 frame(s) "
+            f"covering {len(indexes)} index(es) from {args.can}"
+        )
         print_summary(state)
         return 0
 

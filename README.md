@@ -30,7 +30,8 @@ src/tesla_bms/
 ├── models.py      # Brick, Module, PackState data model
 ├── decoder.py     # 0x6F2 and 0x102 CAN frame decoders
 ├── candump.py     # candump-style log parser
-├── cli.py         # CLI (demo + --log)
+├── live.py        # SocketCAN live capture
+├── cli.py         # CLI (demo + --log + --can)
 └── __init__.py
 
 tests/
@@ -58,6 +59,9 @@ tpm --demo
 
 # Decode a candump-style capture
 tpm --log capture.log
+
+# Live SocketCAN (Linux; needs a real/virtual CAN interface)
+tpm --can can0
 ```
 
 Without installing, you can still run:
@@ -65,6 +69,7 @@ Without installing, you can still run:
 ```bash
 PYTHONPATH=src python3 -m tesla_bms
 PYTHONPATH=src python3 -m tesla_bms --log capture.log
+PYTHONPATH=src python3 -m tesla_bms --can can0
 ```
 
 ### Candump log format
@@ -78,12 +83,18 @@ can0 6F2#0011223344556677
 
 Only frames with ID `0x6F2` are used. Other IDs and blank/comment lines are ignored.
 
+### Live SocketCAN (`--can`)
+
+Listens at **500 kbit/s** for arbitration ID `0x6F2`, collects until indexes `0–31` are seen (or ~10s / Ctrl+C), then prints the same summary as demo/log mode.
+
+Requires Linux SocketCAN (`can0`, `vcan0`, …). On macOS without CAN hardware the CLI exits with a clear error instead of crashing.
+
 ## Status
 
 - [x] Core data model
 - [x] 0x6F2 brick voltage + temperature decoder
 - [x] CLI demo mode + candump `--log` support
-- [ ] SocketCAN live listener
+- [x] SocketCAN live listener (`--can`)
 - [ ] Display + button UI
 - [ ] Report generation
 - [ ] SoftAP web dashboard
