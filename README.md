@@ -58,10 +58,12 @@ tpm
 tpm --demo
 tpm --json
 tpm --weak 10
+tpm --report scan.txt
 
 # Decode a candump-style capture
 tpm --log capture.log
 tpm --log capture.log --json
+tpm --log capture.log --report scan.txt
 
 # Live SocketCAN (Linux; needs a real/virtual CAN interface)
 tpm --can can0
@@ -99,8 +101,8 @@ Requires Linux SocketCAN (`can0`, `vcan0`, …). On macOS without CAN hardware t
 - [x] CLI demo mode + candump `--log` support
 - [x] SocketCAN live listener (`--can`)
 - [x] JSON output (`--json`) and `--weak N`
+- [x] Human-readable `--report FILENAME`
 - [ ] Display + button UI
-- [ ] Report generation
 - [ ] SoftAP web dashboard
 
 ## License

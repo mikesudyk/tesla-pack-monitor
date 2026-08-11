@@ -9,6 +9,7 @@ Usage:
     python -m tesla_bms --can can0
     python -m tesla_bms --json
     python -m tesla_bms --weak 10
+    python -m tesla_bms --report scan.txt
     python -m tesla_bms --help
 """
 
@@ -118,38 +119,38 @@ def summary_dict(state: PackState, weak: int = 5) -> Dict[str, Any]:
     }
 
 
-def print_summary(state: PackState, weak: int = 5) -> None:
-    """Pretty-print a full pack summary to stdout."""
-    print()
-    print("╔══════════════════════════════════════════════════╗")
-    print("║           TESLA PACK MONITOR – SUMMARY           ║")
-    print("╚══════════════════════════════════════════════════╝")
-    print()
+def format_summary(state: PackState, weak: int = 5) -> str:
+    """Build the human-readable pack summary as a single string."""
+    lines: List[str] = [
+        "",
+        "╔══════════════════════════════════════════════════╗",
+        "║           TESLA PACK MONITOR – SUMMARY           ║",
+        "╚══════════════════════════════════════════════════╝",
+        "",
+        state.summary(),
+        "",
+    ]
 
-    # Top-level metrics
-    print(state.summary())
-    print()
-
-    # Weakest / strongest bricks
     weakest = state.weakest_bricks(weak)
     strongest = state.strongest_bricks(3)
 
     if weakest:
-        print("── Weakest bricks ──────────────────────────────")
+        lines.append("── Weakest bricks ──────────────────────────────")
         for b in weakest:
-            print(f"  {b}")
-        print()
+            lines.append(f"  {b}")
+        lines.append("")
 
     if strongest:
-        print("── Strongest bricks ────────────────────────────")
+        lines.append("── Strongest bricks ────────────────────────────")
         for b in strongest:
-            print(f"  {b}")
-        print()
+            lines.append(f"  {b}")
+        lines.append("")
 
-    # Per-module overview
-    print("── Module overview ─────────────────────────────")
-    print(f"{'Mod':<4} {'Avg V':>8} {'Min V':>8} {'Max V':>8} {'Imb mV':>8}  Temps")
-    print("-" * 58)
+    lines.append("── Module overview ─────────────────────────────")
+    lines.append(
+        f"{'Mod':<4} {'Avg V':>8} {'Min V':>8} {'Max V':>8} {'Imb mV':>8}  Temps"
+    )
+    lines.append("-" * 58)
 
     for mod in state.modules():
         avg = mod.avg_voltage()
@@ -170,9 +171,31 @@ def print_summary(state: PackState, weak: int = 5) -> None:
                 temps.append("—")
         temp_s = "  ".join(temps)
 
-        print(f"{mod.index:<4} {avg_s:>8} {mn_s:>8} {mx_s:>8} {imb_s:>8}  {temp_s}")
+        lines.append(
+            f"{mod.index:<4} {avg_s:>8} {mn_s:>8} {mx_s:>8} {imb_s:>8}  {temp_s}"
+        )
 
-    print()
+    lines.append("")
+    return "\n".join(lines)
+
+
+def print_summary(state: PackState, weak: int = 5) -> None:
+    """Pretty-print a full pack summary to stdout."""
+    print(format_summary(state, weak=weak), end="")
+
+
+def write_report(path: Path | str, state: PackState, weak: int = 5) -> Path:
+    """
+    Write the human-readable summary to a file.
+
+    Raises
+    ------
+    OSError
+        On permission errors, missing directories, etc.
+    """
+    path = Path(path)
+    path.write_text(format_summary(state, weak=weak), encoding="utf-8")
+    return path
 
 
 def emit_summary(
@@ -180,12 +203,29 @@ def emit_summary(
     *,
     as_json: bool = False,
     weak: int = 5,
+    report: Optional[Path | str] = None,
 ) -> None:
-    """Emit either human-readable or JSON summary to stdout."""
+    """
+    Emit JSON and/or human-readable summary; optionally save a report file.
+
+    Raises
+    ------
+    OSError
+        If --report is set and the file cannot be written.
+    """
+    human = format_summary(state, weak=weak)
+
+    if report is not None:
+        path = Path(report)
+        path.write_text(human, encoding="utf-8")
+
     if as_json:
         print(json.dumps(summary_dict(state, weak=weak), indent=2))
     else:
-        print_summary(state, weak=weak)
+        print(human, end="")
+
+    if report is not None:
+        _status(f"Report saved to {Path(report)}", as_json=as_json)
 
 
 def _status(message: str, *, as_json: bool) -> None:
@@ -203,6 +243,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "  tesla-bms --demo\n"
             "  tesla-bms --json\n"
             "  tesla-bms --weak 10\n"
+            "  tesla-bms --report scan.txt\n"
             "  tesla-bms --log capture.log --json\n"
             "  tesla-bms --can can0\n"
             "\n"
@@ -245,6 +286,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Number of weakest bricks to include (default: 5)",
     )
     parser.add_argument(
+        "--report",
+        metavar="FILENAME",
+        help="Save the human-readable summary to FILENAME",
+    )
+    parser.add_argument(
         "--version",
         action="store_true",
         help="Show version and exit",
@@ -263,6 +309,20 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     as_json = args.json
     weak = args.weak
+    report = args.report
+
+    def _emit(state: PackState) -> int:
+        try:
+            emit_summary(
+                state,
+                as_json=as_json,
+                weak=weak,
+                report=report,
+            )
+        except OSError as exc:
+            print(f"error: could not write report: {exc}", file=sys.stderr)
+            return 1
+        return 0
 
     if args.log:
         try:
@@ -282,8 +342,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             as_json=as_json,
         )
         state = update_from_6F2_frames(frames)
-        emit_summary(state, as_json=as_json, weak=weak)
-        return 0
+        return _emit(state)
 
     if args.can:
         try:
@@ -297,16 +356,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             f"covering {len(indexes)} index(es) from {args.can}",
             as_json=as_json,
         )
-        emit_summary(state, as_json=as_json, weak=weak)
-        return 0
+        return _emit(state)
 
     # Default / --demo: synthetic sample frames
     _status("Loading sample 0x6F2 frames (demo mode)...", as_json=as_json)
     frames = _make_sample_frames()
     state = update_from_6F2_frames(frames)
-    emit_summary(state, as_json=as_json, weak=weak)
-
-    return 0
+    return _emit(state)
 
 
 if __name__ == "__main__":

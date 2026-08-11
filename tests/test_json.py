@@ -58,9 +58,48 @@ def test_cli_weak_negative_rejected():
     assert code == 2
 
 
+def test_cli_report_writes_file():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "scan.txt"
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            code = main(["--report", str(path), "--weak", "3"])
+        assert code == 0
+        assert path.is_file()
+        text = path.read_text(encoding="utf-8")
+        assert "TESLA PACK MONITOR" in text
+        assert "Weakest bricks" in text
+        assert "Report saved to" in buf.getvalue()
+
+
+def test_cli_report_with_json_keeps_stdout_json():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "scan.txt"
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            code = main(["--json", "--report", str(path)])
+        assert code == 0
+        data = json.loads(buf.getvalue())
+        assert "imbalance_mV" in data
+        assert "TESLA PACK MONITOR" in path.read_text(encoding="utf-8")
+
+
+def test_cli_report_bad_path_returns_1():
+    # Directory that does not exist → OSError when writing
+    code = main(["--report", "/no/such/dir/scan.txt"])
+    assert code == 1
+
+
 if __name__ == "__main__":
     test_summary_dict_shape()
     test_cli_json_stdout_is_pure_json()
     test_cli_weak_in_human_mode()
     test_cli_weak_negative_rejected()
-    print("All JSON/weak tests passed.")
+    test_cli_report_writes_file()
+    test_cli_report_with_json_keeps_stdout_json()
+    test_cli_report_bad_path_returns_1()
+    print("All JSON/weak/report tests passed.")
