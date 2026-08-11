@@ -1,0 +1,8 @@
+# Core
+python-can>=4.3.0
+
+# Optional (later stages)
+# luma.lcd>=2.10.0          # for SPI TFT
+# RPi.GPIO>=0.7.1           # or gpiozero / lgpio depending on board
+# flask>=3.0.0              # SoftAP web dashboard
+# pillow>=10.0.0
