@@ -16,4 +16,4 @@ __all__ = [
     "update_from_6F2_frames",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
