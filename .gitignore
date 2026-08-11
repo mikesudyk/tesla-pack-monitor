@@ -30,8 +30,17 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Project specific
+# Captures / logs
 *.log
 *.csv
 *.pcap
 *.asc
+*.candump
+sample.candump
+capture.log
+
+# Local report / scan outputs
+test_scan.txt
+scan.txt
+*_scan.txt
+*.report.txt

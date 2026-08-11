@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Tesla Pack Monitor – local CLI helper
+# Usage: ./tpm [args...]
+# Example: ./tpm --json
+#          ./tpm --report scan.txt
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+export PYTHONPATH="${ROOT}/src${PYTHONPATH:+:$PYTHONPATH}"
+
+# Prefer the project venv when present (has python-can, etc.)
+if [[ -x "${ROOT}/.venv/bin/python3" ]]; then
+  exec "${ROOT}/.venv/bin/python3" -m tesla_bms "$@"
+fi
+
+exec python3 -m tesla_bms "$@"
