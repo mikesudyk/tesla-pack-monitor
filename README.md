@@ -6,7 +6,7 @@ Target vehicle: **2015 Model S 85D**
 
 **Project guide:** [https://tpm.5udyk.com/](https://tpm.5udyk.com/)
 
-This repository is **private** for now.
+This repository is **public** for now.
 
 ## Current features
 
@@ -82,4 +82,4 @@ Only frames with ID `0x6F2` are used.
 
 ## License
 
-Private project – all rights reserved.
+a side project now - do not try this at home - no guarantees
